@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +21,10 @@ type AwsCommand struct {
 func (ac *AwsCommand) Execute() ([]byte, error) {
 	parts := strings.Split(ac.Command, " ")
 	args := parts[1:len(parts)]
+
+	if parts[0] != "aws" {
+		return nil, errors.New(fmt.Sprintf("Unknown command: %s. Try 'aws help'", parts[0]))
+	}
 
 	// add required endpoint to our service to every call
 	args = append(args, "--endpoint-url=https://s3.bluearchivedev.com")
@@ -58,7 +63,7 @@ func parseRequest(r *http.Request, data interface{}) error {
 func main() {
 	http.HandleFunc("/aws", func(w http.ResponseWriter, r *http.Request) {
 		type Response struct {
-			Result string `json:"result"`
+			Result []byte `json:"result"`
 		}
 
 		if r.Method == "POST" {
@@ -68,15 +73,15 @@ func main() {
 
 			out, err := cmd.Execute()
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Internal Server Error: %s", err), http.StatusInternalServerError)
+				http.Error(w, err.Error(), 400)
 				return
 			}
 
-			resp := &Response{string(out)}
+			resp := &Response{out}
 			fmt.Printf("Response will be: %s\n", resp)
 			renderJson(w, 200, resp)
 		} else {
-			resp := &Response{"Need to post command"}
+			resp := &Response{[]byte("Need to post command")}
 			renderJson(w, 200, resp)
 		}
 	})
